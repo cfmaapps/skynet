@@ -1,0 +1,1666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EA Package Builder – Clark Fortune McDonald</title>
+    <script src="lib/docx.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <style>
+        :root {
+            --primary: #1a3a5c;
+            --primary-light: #2d5a8e;
+            --accent: #c8a84b;
+            --bg: #f0f3f7;
+            --card: #ffffff;
+            --text: #1e2d3d;
+            --muted: #64748b;
+            --border: #dde3ec;
+            --green: #16a34a;
+            --red: #dc2626;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; }
+
+        /* ── HEADER ── */
+        header {
+            background: var(--primary);
+            color: #fff;
+            padding: 0 24px;
+            height: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky; top: 0; z-index: 200;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+        }
+        header .brand { display: flex; align-items: center; gap: 12px; }
+        header .brand .logo { width: 36px; height: 36px; background: var(--accent); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; color: var(--primary); letter-spacing: -0.5px; }
+        header h1 { font-size: 16px; font-weight: 700; }
+        header .sub { font-size: 11px; opacity: 0.6; margin-top: 1px; }
+        #btn-export-top {
+            background: var(--accent); color: var(--primary);
+            border: none; padding: 8px 20px; border-radius: 6px;
+            font-weight: 700; font-size: 13px; cursor: pointer;
+            display: flex; align-items: center; gap: 6px;
+            transition: all 0.15s;
+        }
+        #btn-export-top:hover { background: #d9b95a; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(200,168,75,0.4); }
+        #btn-export-top:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+        /* ── LAYOUT ── */
+        .layout { display: flex; height: calc(100vh - 56px); }
+
+        /* ── SIDEBAR ── */
+        aside {
+            width: 260px; flex-shrink: 0;
+            background: var(--card);
+            border-right: 1px solid var(--border);
+            display: flex; flex-direction: column;
+            overflow: hidden;
+        }
+        .sidebar-head {
+            padding: 14px 16px 10px;
+            border-bottom: 1px solid var(--border);
+        }
+        .sidebar-head h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); margin-bottom: 8px; }
+        .sel-btns { display: flex; gap: 6px; }
+        .sel-btns button {
+            flex: 1; padding: 5px 0;
+            border: 1px solid var(--border); border-radius: 4px;
+            background: transparent; font-size: 11px; color: var(--muted);
+            cursor: pointer; transition: all 0.12s;
+        }
+        .sel-btns button:hover { background: var(--bg); color: var(--primary-light); border-color: var(--primary-light); }
+
+        .doc-list { overflow-y: auto; padding: 10px 10px; flex: 1; }
+        .doc-item {
+            display: flex; align-items: flex-start;
+            padding: 7px 8px; border-radius: 6px; cursor: pointer;
+            transition: background 0.12s; margin-bottom: 2px;
+        }
+        .doc-item:hover { background: var(--bg); }
+        .doc-item input[type="checkbox"] { margin-top: 2px; margin-right: 8px; accent-color: var(--primary); width: 14px; height: 14px; cursor: pointer; flex-shrink: 0; }
+        .doc-item label { cursor: pointer; line-height: 1.35; }
+        .doc-item .doc-code { display: block; font-size: 10px; font-weight: 700; color: var(--accent); letter-spacing: 0.3px; }
+        .doc-item .doc-name { font-size: 12px; color: var(--text); }
+
+        .sidebar-footer {
+            padding: 12px 16px;
+            border-top: 1px solid var(--border);
+            font-size: 11px; color: var(--muted);
+        }
+        #sel-count { font-weight: 700; color: var(--primary-light); }
+
+        /* ── MAIN ── */
+        main { flex: 1; overflow-y: auto; padding: 24px; }
+
+        .section-card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 20px; overflow: hidden; }
+        .section-card .sec-head {
+            background: var(--primary); color: #fff;
+            padding: 10px 16px; font-size: 12px; font-weight: 700;
+            letter-spacing: 0.3px; display: flex; align-items: center; gap: 8px;
+        }
+        .sec-head .ico { font-size: 15px; }
+        .sec-body { padding: 16px; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+
+        .fg { display: flex; flex-direction: column; }
+        .fg.wide { grid-column: 1 / -1; }
+        .fg label {
+            font-size: 11px; font-weight: 600; color: var(--muted);
+            margin-bottom: 4px; display: flex; align-items: center; gap: 5px;
+        }
+        .fg label .fn { background: var(--primary); color: #fff; font-size: 9px; padding: 1px 5px; border-radius: 3px; font-weight: 700; }
+        .fg input, .fg textarea, .fg select {
+            border: 1px solid var(--border); border-radius: 6px;
+            padding: 7px 10px; font-size: 13px; font-family: inherit;
+            color: var(--text); background: #fff; width: 100%;
+            transition: border-color 0.15s, box-shadow 0.15s;
+        }
+        .fg input:focus, .fg textarea:focus, .fg select:focus {
+            outline: none; border-color: var(--primary-light);
+            box-shadow: 0 0 0 3px rgba(45,90,142,0.12);
+        }
+        .fg textarea { resize: vertical; min-height: 72px; }
+        .fg input::placeholder, .fg textarea::placeholder { color: #a0aec0; }
+
+        /* ── STATUS BAR ── */
+        #toast {
+            position: fixed; bottom: 24px; right: 24px;
+            background: var(--primary); color: #fff;
+            padding: 12px 20px; border-radius: 8px;
+            font-size: 13px; font-weight: 500;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            transform: translateY(80px); opacity: 0;
+            transition: all 0.3s;
+            z-index: 500;
+        }
+        #toast.show { transform: translateY(0); opacity: 1; }
+        #toast.success { background: var(--green); }
+        #toast.error { background: var(--red); }
+
+        /* ── HEADER SECONDARY BUTTONS ── */
+        .hdr-btns { display: flex; align-items: center; gap: 8px; }
+        .btn-ghost {
+            background: transparent; color: rgba(255,255,255,0.8);
+            border: 1px solid rgba(255,255,255,0.3); padding: 7px 14px;
+            border-radius: 6px; font-size: 12px; font-weight: 600;
+            cursor: pointer; transition: all 0.15s;
+        }
+        .btn-ghost:hover { background: rgba(255,255,255,0.12); color: #fff; border-color: rgba(255,255,255,0.6); }
+        .btn-ghost.danger:hover { background: rgba(220,38,38,0.25); border-color: #f87171; color: #fca5a5; }
+        .saved-badge {
+            font-size: 11px; color: rgba(255,255,255,0.5);
+            margin-right: 4px; font-style: italic;
+        }
+
+        /* ── SPINNER OVERLAY ── */
+        #overlay {
+            display: none; position: fixed; inset: 0;
+            background: rgba(0,0,0,0.45); z-index: 400;
+            align-items: center; justify-content: center;
+        }
+        #overlay.show { display: flex; }
+        .spinner-card { background: #fff; border-radius: 12px; padding: 28px 36px; text-align: center; min-width: 280px; }
+        .spinner-card h3 { color: var(--primary); margin-bottom: 14px; font-size: 15px; }
+        .spinner { width: 40px; height: 40px; border: 4px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .spinner-msg { font-size: 12px; color: var(--muted); }
+
+        /* ── IMPORT BUTTON ── */
+        .btn-import {
+            background: rgba(200,168,75,0.18); color: var(--accent);
+            border: 1px solid rgba(200,168,75,0.5); padding: 7px 14px;
+            border-radius: 6px; font-size: 12px; font-weight: 700;
+            cursor: pointer; transition: all 0.15s;
+        }
+        .btn-import:hover { background: rgba(200,168,75,0.32); border-color: var(--accent); color: #e8c96a; }
+        .hdr-divider { width: 1px; height: 28px; background: rgba(255,255,255,0.18); margin: 0 4px; }
+
+        /* ── IMPORT MODAL ── */
+        #import-modal {
+            display: none; position: fixed; inset: 0; z-index: 600;
+            background: rgba(0,0,0,0.5); align-items: center; justify-content: center;
+        }
+        #import-modal.show { display: flex; }
+        .import-card {
+            background: #fff; border-radius: 14px; width: 520px; max-width: 94vw;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3); overflow: hidden;
+        }
+        .import-head {
+            background: var(--primary); color: #fff; padding: 18px 22px;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .import-head h3 { margin: 0; font-size: 15px; }
+        .import-head .close-btn {
+            background: none; border: none; color: rgba(255,255,255,0.7);
+            font-size: 20px; cursor: pointer; line-height: 1; padding: 0 4px;
+        }
+        .import-head .close-btn:hover { color: #fff; }
+        .import-body { padding: 22px; }
+        .import-drop {
+            border: 2px dashed var(--border); border-radius: 10px;
+            padding: 32px 20px; text-align: center; cursor: pointer;
+            transition: all 0.2s; background: var(--bg);
+        }
+        .import-drop:hover, .import-drop.drag-over { border-color: var(--accent); background: #fffbf0; }
+        .import-drop .di { font-size: 36px; margin-bottom: 10px; }
+        .import-drop p { margin: 0; color: var(--muted); font-size: 13px; }
+        .import-drop strong { color: var(--primary); font-size: 14px; display: block; margin-bottom: 6px; }
+        #import-file { display: none; }
+        .import-preview {
+            display: none; margin-top: 18px; background: var(--bg);
+            border-radius: 8px; padding: 14px; font-size: 12px;
+        }
+        .import-preview h4 { margin: 0 0 10px; color: var(--primary); font-size: 13px; }
+        .imp-row { display: flex; align-items: baseline; gap: 8px; padding: 4px 0;
+            border-bottom: 1px solid var(--border); }
+        .imp-row:last-child { border-bottom: none; }
+        .imp-label { color: var(--muted); min-width: 160px; font-size: 11px; }
+        .imp-val { color: var(--primary); font-weight: 600; font-size: 12px; word-break: break-word; }
+        .imp-val.empty { color: #ccc; font-style: italic; font-weight: normal; }
+        .imp-warn { color: #b45309; font-size: 11px; margin-top: 8px; }
+        .import-actions { display: flex; gap: 10px; margin-top: 16px; justify-content: flex-end; }
+        .btn-imp-confirm {
+            background: var(--primary); color: #fff; border: none;
+            padding: 9px 20px; border-radius: 7px; font-size: 13px;
+            font-weight: 600; cursor: pointer;
+        }
+        .btn-imp-confirm:hover { background: var(--primary-light); }
+        .btn-imp-cancel {
+            background: none; border: 1px solid var(--border); color: var(--muted);
+            padding: 9px 16px; border-radius: 7px; font-size: 13px; cursor: pointer;
+        }
+        .overwrite-opt { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); margin-top: 12px; }
+        .overwrite-opt input { cursor: pointer; }
+        .imp-row-block { flex-direction: column; align-items: flex-start; gap: 4px; padding: 8px 0; }
+        .imp-row-block .imp-label { margin-bottom: 2px; }
+        .imp-val-wrap { width: 100%; }
+        .imp-val-wrap .imp-val { display: block; line-height: 1.5; max-height: 200px; overflow-y: auto; }
+        .imp-expand {
+            margin-top: 5px; background: none; border: 1px solid var(--border);
+            color: var(--primary-light); font-size: 11px; padding: 2px 8px;
+            border-radius: 4px; cursor: pointer;
+        }
+        .imp-expand:hover { background: var(--bg); }
+    </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+    <div class="brand">
+        <div class="logo">CFM</div>
+        <div>
+            <h1>EA Package Builder</h1>
+            <div class="sub">Clark Fortune McDonald &amp; Associates</div>
+        </div>
+    </div>
+    <div class="hdr-btns">
+        <span class="saved-badge" id="saved-badge"></span>
+        <button class="btn-import" onclick="openImportModal()" title="Import project info from Resource Consent Analyser JSON">&#8659; Import from Consent Analyser</button>
+        <div class="hdr-divider"></div>
+        <button class="btn-ghost" onclick="saveToStorage()" title="Save all fields to browser storage">&#128190; Save</button>
+        <button class="btn-ghost" onclick="loadFromStorage()" title="Reload last saved data">&#128257; Load Saved</button>
+        <button class="btn-ghost danger" onclick="clearForm()" title="Clear all fields">&#10005; Clear Form</button>
+        <button id="btn-export-top" onclick="exportDocuments()">&#8595; Export Selected Docs</button>
+    </div>
+</header>
+
+<!-- IMPORT MODAL -->
+<div id="import-modal">
+    <div class="import-card">
+        <div class="import-head">
+            <h3>&#8659; Import from Resource Consent Analyser</h3>
+            <button class="close-btn" onclick="closeImportModal()">&#10005;</button>
+        </div>
+        <div class="import-body">
+            <div class="import-drop" id="import-drop" onclick="document.getElementById('import-file').click()"
+                 ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)">
+                <div class="di">&#128196;</div>
+                <strong>Drop JSON file here or click to browse</strong>
+                <p>Export your project from the Resource Consent Analyser<br>using its <em>Save Progress</em> button, then import that file here.</p>
+            </div>
+            <input type="file" id="import-file" accept=".json,application/json" onchange="handleFileSelect(event)">
+
+            <div class="import-preview" id="import-preview">
+                <h4>&#10003; Fields found — ready to import</h4>
+                <div id="import-preview-rows"></div>
+                <p class="imp-warn" id="import-warn"></p>
+                <label class="overwrite-opt">
+                    <input type="checkbox" id="overwrite-existing" checked>
+                    Overwrite fields that already have values
+                </label>
+                <div class="import-actions">
+                    <button class="btn-imp-cancel" onclick="closeImportModal()">Cancel</button>
+                    <button class="btn-imp-confirm" onclick="applyImport()">&#8659; Apply to Form</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="layout">
+
+    <!-- SIDEBAR – document selection -->
+    <aside>
+        <div class="sidebar-head">
+            <h2>Documents to Export</h2>
+            <div class="sel-btns">
+                <button onclick="selectAll(true)">Select All</button>
+                <button onclick="selectAll(false)">Clear All</button>
+            </div>
+        </div>
+        <div class="doc-list" id="doc-list"></div>
+        <div class="sidebar-footer"><span id="sel-count">0</span> documents selected</div>
+    </aside>
+
+    <!-- MAIN FORM -->
+    <main>
+
+        <!-- 1. PROJECT DETAILS -->
+        <div class="section-card">
+            <div class="sec-head"><span class="ico">📋</span> Project Details</div>
+            <div class="sec-body">
+                <div class="fg"><label><span class="fn">001</span> Project Name</label><input id="f001" type="text" placeholder="e.g. Hogans Gully Farm"></div>
+                <div class="fg"><label><span class="fn">002</span> Project Address</label><input id="f002" type="text" placeholder="e.g. McDonnell Road"></div>
+                <div class="fg"><label><span class="fn">003</span> Applicant Name</label><input id="f003" type="text" placeholder="e.g. Hogans Gully Road Ltd"></div>
+                <div class="fg"><label><span class="fn">008</span> Application Date</label><input id="f008" type="text" placeholder="e.g. 09 September 2024"></div>
+                <div class="fg"><label><span class="fn">005</span> Consent Number</label><input id="f005" type="text" placeholder="e.g. RM180497"></div>
+                <div class="fg"><label><span class="fn">006</span> Contract Number</label><input id="f006" type="text" placeholder="e.g. 12865_2024_D"></div>
+                <div class="fg"><label><span class="fn">007</span> Contract Name</label><input id="f007" type="text" placeholder="e.g. Hogans Gully Road Services"></div>
+                <div class="fg"><label><span class="fn">024</span> Status</label><input id="f024" type="text" placeholder="e.g. Engineering Approval"></div>
+                <div class="fg"><label><span class="fn">019</span> Contract Description</label><input id="f019" type="text" placeholder="e.g. Reticulated Services"></div>
+                <div class="fg"><label><span class="fn">020</span> Number of Lots</label><input id="f020" type="text" placeholder="e.g. 55"></div>
+                <div class="fg"><label><span class="fn">021</span> Engineering Approval Reference</label><input id="f021" type="text" placeholder="e.g. EA yet to be issued"></div>
+            </div>
+        </div>
+
+        <!-- 2. SITE INFORMATION -->
+        <div class="section-card">
+            <div class="sec-head"><span class="ico">📍</span> Site Information</div>
+            <div class="sec-body">
+                <div class="fg"><label><span class="fn">010</span> Site Location</label><input id="f010" type="text" placeholder="e.g. Hogans Gully Road"></div>
+                <div class="fg"><label><span class="fn">011</span> Site Legal Description</label><input id="f011" type="text" placeholder="e.g. Road corridor"></div>
+                <div class="fg"><label><span class="fn">012</span> Site CT Reference</label><input id="f012" type="text" placeholder="e.g. Road corridor / CT reference"></div>
+                <div class="fg"><label><span class="fn">013</span> Site Access Point</label><input id="f013" type="text" placeholder="e.g. Hogans Gully Road"></div>
+            </div>
+        </div>
+
+        <!-- 3. PRINCIPAL INFORMATION -->
+        <div class="section-card">
+            <div class="sec-head"><span class="ico">🏢</span> Principal Information</div>
+            <div class="sec-body">
+                <div class="fg"><label><span class="fn">014</span> Principal Name</label><input id="f014" type="text" placeholder="e.g. Trojan Holdings Ltd"></div>
+                <div class="fg"><label><span class="fn">014a</span> Principal Contact</label><input id="f014a" type="text" placeholder="e.g. Shane Muir"></div>
+                <div class="fg"><label><span class="fn">015</span> Principal Address 1</label><input id="f015" type="text" placeholder="e.g. 144 Camp Street"></div>
+                <div class="fg"><label><span class="fn">016</span> Principal Address 2</label><input id="f016" type="text" placeholder="e.g. Queenstown, 9300"></div>
+            </div>
+        </div>
+
+        <!-- 4. AUTHOR & ENGINEER -->
+        <div class="section-card">
+            <div class="sec-head"><span class="ico">👷</span> Author &amp; Engineer Information</div>
+            <div class="sec-body">
+                <div class="fg"><label><span class="fn">004</span> Author Name</label><input id="f004" type="text" placeholder="e.g. Sam Lees"></div>
+                <div class="fg"><label><span class="fn">009</span> Author Email</label><input id="f009" type="email" placeholder="e.g. slees@cfma.co.nz"></div>
+                <div class="fg"><label><span class="fn">017</span> Engineer Name</label><input id="f017" type="text" placeholder="e.g. Chris Hansen"></div>
+                <div class="fg"><label><span class="fn">018</span> Engineer Email</label><input id="f018" type="email" placeholder="e.g. chansen@cfma.co.nz"></div>
+                <div class="fg"><label><span class="fn">029</span> Engineer Mobile Number</label><input id="f029" type="text" placeholder="e.g. 021 123 4567"></div>
+                <div class="fg"><label><span class="fn">032</span> Engineer Qualifications</label><input id="f032" type="text" placeholder="e.g. BSurv, MNZIS, MCSNZ"></div>
+                <div class="fg"><label><span class="fn">027</span> Traffic Engineer</label><input id="f027" type="text" placeholder="Name / firm"></div>
+                <div class="fg"><label><span class="fn">028</span> Environmental Consultants</label><input id="f028" type="text" placeholder="Name / firm"></div>
+                <div class="fg"><label><span class="fn">028a</span> Geotechnical Consultants</label><input id="f028a" type="text" placeholder="Name / firm"></div>
+            </div>
+        </div>
+
+        <!-- 5. TENDER INFORMATION -->
+        <div class="section-card">
+            <div class="sec-head"><span class="ico">📅</span> Tender Information</div>
+            <div class="sec-body">
+                <div class="fg"><label><span class="fn">030</span> Arrange to View Site</label><input id="f030" type="text" placeholder="e.g. By appointment with the Principal"></div>
+                <div class="fg"><label><span class="fn">031</span> Tenders Close</label><input id="f031" type="text" placeholder="e.g. 12:00 noon on Friday 1 November 2024"></div>
+                <div class="fg"><label><span class="fn">031a</span> Due Date for Completion</label><input id="f031a" type="text" placeholder="e.g. 31 March 2025"></div>
+                <div class="fg"><label><span class="fn">031b</span> Possession Date</label><input id="f031b" type="text" placeholder="e.g. 1 December 2024"></div>
+            </div>
+        </div>
+
+        <!-- 6. FINANCIAL & CONTRACT TERMS -->
+        <div class="section-card">
+            <div class="sec-head"><span class="ico">💰</span> Financial &amp; Contract Terms</div>
+            <div class="sec-body">
+                <div class="fg"><label><span class="fn">036</span> Type of Contract</label><input id="f036" type="text" placeholder="e.g. Measure and Value"></div>
+                <div class="fg"><label><span class="fn">033</span> Liquidated Damages</label><input id="f033" type="text" placeholder="e.g. $2000.00 plus GST per week"></div>
+                <div class="fg"><label><span class="fn">034</span> Contingency</label><input id="f034" type="text" placeholder="e.g. Nil"></div>
+                <div class="fg wide"><label><span class="fn">035</span> Separable Portions</label><input id="f035" type="text" placeholder="e.g. There are no separable portions"></div>
+                <div class="fg"><label><span class="fn">037</span> Contractors Bond Is/Not Required</label><input id="f037" type="text" placeholder="e.g. Is required"></div>
+                <div class="fg"><label><span class="fn">038</span> Contractors Bond Amount</label><input id="f038" type="text" placeholder="e.g. 5% of the tender price"></div>
+                <div class="fg"><label><span class="fn">039</span> Principals Bond Is/Not Required</label><input id="f039" type="text" placeholder="e.g. Is not required"></div>
+                <div class="fg"><label><span class="fn">040</span> Principals Bond Amount</label><input id="f040" type="text" placeholder="e.g. Nil% of the tender price"></div>
+                <div class="fg wide"><label><span class="fn">041</span> Provisional Sums</label><input id="f041" type="text" placeholder="e.g. There are no Provisional Sums"></div>
+                <div class="fg wide"><label><span class="fn">042</span> Provisional Items</label><input id="f042" type="text" placeholder="e.g. There are Provisional Items"></div>
+                <div class="fg wide"><label><span class="fn">043</span> Prime Cost Sums</label><input id="f043" type="text" placeholder="e.g. There are no prime cost sums"></div>
+            </div>
+        </div>
+
+        <!-- 7. UTILITIES & SERVICES -->
+        <div class="section-card">
+            <div class="sec-head"><span class="ico">⚡</span> Utilities &amp; Services</div>
+            <div class="sec-body">
+                <div class="fg"><label><span class="fn">022</span> Electricity Service Provider</label><input id="f022" type="text" placeholder="e.g. Aurora Energy"></div>
+                <div class="fg"><label><span class="fn">023</span> Telecommunications Provider</label><input id="f023" type="text" placeholder="e.g. Chorus"></div>
+                <div class="fg"><label><span class="fn">023a</span> Gas Provider</label><input id="f023a" type="text" placeholder="e.g. N/A or provider name"></div>
+            </div>
+        </div>
+
+        <!-- 8. CONSENT CONDITIONS -->
+        <div class="section-card">
+            <div class="sec-head"><span class="ico">📜</span> Consent Conditions</div>
+            <div class="sec-body">
+                <div class="fg wide"><label><span class="fn">025</span> EA Consent Conditions</label><textarea id="f025" placeholder="e.g. Conditions 11 i and 11 j"></textarea></div>
+                <div class="fg wide"><label><span class="fn">026</span> CEMP Consent Conditions</label><textarea id="f026" placeholder="e.g. CEMP yet to be issued"></textarea></div>
+            </div>
+        </div>
+
+        <!-- 9. EMP -->
+        <div class="section-card">
+            <div class="sec-head"><span class="ico">🌿</span> Environmental</div>
+            <div class="sec-body">
+                <div class="fg wide"><label><span class="fn">044</span> EMP Plan</label><textarea id="f044" placeholder="e.g. The site EMP plan shall be prepared by the Principal"></textarea></div>
+            </div>
+        </div>
+
+    </main>
+</div>
+
+<!-- SPINNER -->
+<div id="overlay"><div class="spinner-card"><div class="spinner"></div><h3>Generating Documents…</h3><div class="spinner-msg" id="spinner-msg">Please wait</div></div></div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════
+//  DOCUMENT LIST
+// ═══════════════════════════════════════════════════
+const DOCS = [
+    { id: 'doc001', code: 'ENG-ACC-001', name: 'Cover Letter (EA)',             fn: 'ENG_ACC_001_COVER_LETTER.docx' },
+    { id: 'doc002', code: 'ENG-ACC-002', name: 'Engineering Report',            fn: 'ENG_ACC_002_ENG_REPORT.docx' },
+    { id: 'doc003', code: 'ENG-ACC-003', name: 'Design & Execution Report',     fn: 'ENG_ACC_003_DES_EXEC_REP.docx' },
+    { id: 'doc004', code: 'ENG-ACC-004', name: 'Schedule 1A – Design Cert.',    fn: 'ENG_ACC_004_SCH_1A_DESIGN_CERT.docx' },
+    { id: 'doc005', code: 'ENG-ACC-005', name: 'Stormwater Calculations',       fn: 'ENG_ACC_005_STORMWATER_CALCS.docx' },
+    { id: 'doc006', code: 'ENG-ACC-006', name: 'Intersection Sight Distance',   fn: 'ENG_ACC_006_SIGHT_DIST_REPORT.docx' },
+    { id: 'doc007', code: 'ENG-ACC-007', name: 'CFMA Design Plans',             fn: 'ENG_ACC_007_CFMA_DESIGN_PLANS.docx' },
+    { id: 'doc009', code: 'ENG-ACC-009', name: 'Road Safety Audit',             fn: 'ENG_ACC_009_ROAD_SAFETY_AUDIT.docx' },
+    { id: 'doc010', code: 'ENG-ACC-010', name: 'Target Operating Speed Assess.',fn: 'ENG_ACC_010_TARGET_OP_SPEED.docx' },
+    { id: 'doc011', code: 'ENG-ACC-011', name: 'Environmental Management Plan', fn: 'ENG_ACC_011_EMP.docx' },
+    { id: 'docSPEC', code: 'SPEC',       name: 'Civils Specification',          fn: 'CIVILS_SPECIFICATION.docx' },
+    { id: 'docRFT',  code: 'RFT',        name: 'Request for Tender',            fn: 'REQUEST_FOR_TENDER.docx' },
+];
+
+// Build sidebar
+const docList = document.getElementById('doc-list');
+DOCS.forEach(d => {
+    const item = document.createElement('div');
+    item.className = 'doc-item';
+    item.innerHTML = `<input type="checkbox" id="${d.id}" checked onchange="updateCount()">
+        <label for="${d.id}"><span class="doc-code">${d.code}</span><span class="doc-name">${d.name}</span></label>`;
+    docList.appendChild(item);
+});
+updateCount();
+
+function selectAll(state) {
+    DOCS.forEach(d => document.getElementById(d.id).checked = state);
+    updateCount();
+}
+function updateCount() {
+    const n = DOCS.filter(d => document.getElementById(d.id).checked).length;
+    document.getElementById('sel-count').textContent = n;
+}
+
+// ═══════════════════════════════════════════════════
+//  FORM DATA
+// ═══════════════════════════════════════════════════
+function getFormData() {
+    const g = id => (document.getElementById(id) || {}).value || '';
+    return {
+        projName:         g('f001'),
+        projAddress:      g('f002'),
+        applicantName:    g('f003'),
+        authorName:       g('f004'),
+        consentNumber:    g('f005'),
+        contractNumber:   g('f006'),
+        contractName:     g('f007'),
+        applicationDate:  g('f008'),
+        authorEmail:      g('f009'),
+        siteLocation:     g('f010'),
+        siteLegalDesc:    g('f011'),
+        siteTitleRef:     g('f012'),
+        siteAccessPoint:  g('f013'),
+        principalName:    g('f014'),
+        principalContact: g('f014a'),
+        principalAddr1:   g('f015'),
+        principalAddr2:   g('f016'),
+        engineerName:     g('f017'),
+        engineerEmail:    g('f018'),
+        contractDesc:     g('f019'),
+        noOfLots:         g('f020'),
+        engApproval:      g('f021'),
+        electricProv:     g('f022'),
+        telecomProv:      g('f023'),
+        gasProv:          g('f023a'),
+        status:           g('f024'),
+        eaConsentConds:   g('f025'),
+        cempConsentConds: g('f026'),
+        trafficEngineer:  g('f027'),
+        envConsultants:   g('f028'),
+        geotechConsult:   g('f028a'),
+        engineerMobile:   g('f029'),
+        arrangeToView:    g('f030'),
+        tendersClose:     g('f031'),
+        completionDate:   g('f031a'),
+        possessionDate:   g('f031b'),
+        engineerQuals:    g('f032'),
+        liqDamages:       g('f033'),
+        contingency:      g('f034'),
+        separablePortions:g('f035'),
+        contractType:     g('f036'),
+        contractorsBond:  g('f037'),
+        contractorsBondAmt:g('f038'),
+        principalsBond:   g('f039'),
+        principalsBondAmt:g('f040'),
+        provSums:         g('f041'),
+        provItems:        g('f042'),
+        primeCostSums:    g('f043'),
+        empPlan:          g('f044'),
+    };
+}
+
+// ═══════════════════════════════════════════════════
+//  DOCX HELPERS
+// ═══════════════════════════════════════════════════
+function fv(value, fallback) {
+    const fb = fallback || 'xxxxxx';
+    const v = (value || '').trim();
+    if (v) return new docx.TextRun({ text: v });
+    return new docx.TextRun({ text: fb, highlight: 'yellow' });
+}
+
+function p(children, opts) {
+    const runs = Array.isArray(children) ? children : [new docx.TextRun({ text: children || '' })];
+    return new docx.Paragraph(Object.assign({ children: runs, spacing: { after: 120 } }, opts || {}));
+}
+
+function blank(n) {
+    const count = n || 1;
+    const arr = [];
+    for (let i = 0; i < count; i++) arr.push(new docx.Paragraph({ children: [new docx.TextRun('')], spacing: { after: 0 } }));
+    return arr;
+}
+
+function heading1(text) {
+    return new docx.Paragraph({
+        children: [new docx.TextRun({ text, bold: true, size: 28, color: '1A3A5C' })],
+        spacing: { before: 320, after: 160 },
+        border: { bottom: { style: docx.BorderStyle.SINGLE, size: 6, color: '1A3A5C' } }
+    });
+}
+
+function heading2(text) {
+    return new docx.Paragraph({
+        children: [new docx.TextRun({ text, bold: true, size: 24, color: '2D5A8E' })],
+        spacing: { before: 240, after: 120 }
+    });
+}
+
+function labeled(label, valueRun) {
+    return new docx.Paragraph({
+        children: [
+            new docx.TextRun({ text: label + ':  ', bold: true }),
+            valueRun
+        ],
+        spacing: { after: 80 }
+    });
+}
+
+function bold(text) { return new docx.TextRun({ text, bold: true }); }
+
+const A4_SECTION = {
+    properties: {
+        page: {
+            size: { width: 11906, height: 16838 },
+            margin: { top: 1134, right: 1134, bottom: 1134, left: 1134 }
+        }
+    }
+};
+
+function cfmHeader() {
+    return [
+        new docx.Paragraph({
+            children: [new docx.TextRun({ text: 'CLARK FORTUNE McDONALD & ASSOCIATES LIMITED', bold: true, size: 28, color: '1A3A5C' })],
+            alignment: docx.AlignmentType.CENTER,
+            spacing: { after: 40 }
+        }),
+        new docx.Paragraph({
+            children: [new docx.TextRun({ text: '309 Lower Shotover Road, Queenstown  |  PO Box 553, Queenstown  |  Phone: 03 442 0990', size: 18, color: '64748B' })],
+            alignment: docx.AlignmentType.CENTER,
+            spacing: { after: 40 }
+        }),
+        new docx.Paragraph({
+            children: [new docx.TextRun({ text: '─'.repeat(80), color: 'C8A84B' })],
+            alignment: docx.AlignmentType.CENTER,
+            spacing: { after: 240 }
+        }),
+    ];
+}
+
+// ═══════════════════════════════════════════════════
+//  001 – COVER LETTER
+// ═══════════════════════════════════════════════════
+async function genCoverLetter(data) {
+    const date = data.applicationDate || new Date().toLocaleDateString('en-NZ', { day:'2-digit', month:'long', year:'numeric' });
+    const children = [
+        ...cfmHeader(),
+        p([new docx.TextRun(date)]),
+        ...blank(),
+        p([new docx.TextRun('The Manager')]),
+        p([new docx.TextRun('Resource Management Engineering,')]),
+        p([new docx.TextRun('Subdivision and Development Contributions,')]),
+        p([new docx.TextRun({ text: 'Queenstown Lakes District Council', bold: false })]),
+        p([new docx.TextRun('Private Bag 50077')]),
+        p([new docx.TextRun('QUEENSTOWN')]),
+        ...blank(),
+        p([new docx.TextRun({ text: 'Attention: Mr David Wallace', italic: true })]),
+        ...blank(),
+        new docx.Paragraph({
+            children: [
+                new docx.TextRun({ text: 'RE: ENGINEERING ACCEPTANCE – ', bold: true }),
+                fv(data.contractName),
+                new docx.TextRun({ text: ' – Consent ', bold: true }),
+                fv(data.consentNumber),
+            ],
+            spacing: { after: 200 }
+        }),
+        p([new docx.TextRun('Dear Sir/Madam,')]),
+        ...blank(),
+        p([
+            new docx.TextRun('We act as consulting engineers to '),
+            fv(data.applicantName),
+            new docx.TextRun(' (the "Applicant") in respect of Resource Consent '),
+            fv(data.consentNumber),
+            new docx.TextRun('.'),
+        ]),
+        ...blank(),
+        p([
+            new docx.TextRun('We are pleased to submit herewith the Engineering Acceptance application package for '),
+            fv(data.projName),
+            new docx.TextRun(' in respect of Consent Conditions '),
+            fv(data.eaConsentConds),
+            new docx.TextRun('.'),
+        ]),
+        ...blank(),
+        heading2('Project Details'),
+        labeled('Project Name',          fv(data.projName)),
+        labeled('Project Address',       fv(data.projAddress)),
+        labeled('Applicant',             fv(data.applicantName)),
+        labeled('Consent Number',        fv(data.consentNumber)),
+        labeled('Contract Name',         fv(data.contractName)),
+        labeled('Contract Number',       fv(data.contractNumber)),
+        labeled('Contract Description',  fv(data.contractDesc)),
+        labeled('Site Location',         fv(data.siteLocation)),
+        labeled('Site Legal Description',fv(data.siteLegalDesc)),
+        labeled('Site Title Reference',  fv(data.siteTitleRef)),
+        labeled('Site Access Point',     fv(data.siteAccessPoint)),
+        labeled('Principal',             fv(data.principalName)),
+        labeled('Principal Address',     new docx.TextRun({ text: [data.principalAddr1, data.principalAddr2].filter(Boolean).join(', ') || 'xxxxxx', highlight: (data.principalAddr1 || data.principalAddr2) ? undefined : 'yellow' })),
+        labeled('Number of Lots',        fv(data.noOfLots)),
+        ...blank(),
+        heading2('Application Package Contents'),
+        p([new docx.TextRun('This Engineering Acceptance submission includes the following documents:')]),
+        ...blank(1),
+        p([new docx.TextRun('1.  ENG_ACC_001 – Cover Letter (this document)')]),
+        p([new docx.TextRun('2.  ENG_ACC_002 – Engineering Report')]),
+        p([new docx.TextRun('3.  ENG_ACC_003 – Design and Execution Representative')]),
+        p([new docx.TextRun('4.  ENG_ACC_004 – Schedule 1A Design Certificate')]),
+        p([new docx.TextRun('5.  ENG_ACC_005 – Stormwater Calculations')]),
+        p([new docx.TextRun('6.  ENG_ACC_006 – Intersection Sight Distance Report')]),
+        p([new docx.TextRun('7.  ENG_ACC_007 – CFMA Design Plans')]),
+        p([new docx.TextRun('8.  ENG_ACC_009 – Road Safety Audit')]),
+        p([new docx.TextRun('9.  ENG_ACC_010 – Target Operating Speed Assessment')]),
+        p([new docx.TextRun('10. ENG_ACC_011 – Environmental Management Plan')]),
+        ...blank(),
+        heading2('Relevant Consent Conditions'),
+        p([fv(data.eaConsentConds)]),
+        ...blank(),
+        p([new docx.TextRun('Please do not hesitate to contact us should you require any further information.')]),
+        ...blank(),
+        p([new docx.TextRun('Yours faithfully,')]),
+        ...blank(3),
+        p([new docx.TextRun({ text: 'CLARK FORTUNE McDONALD & ASSOCIATES LIMITED', bold: true })]),
+        p([fv(data.authorName)]),
+        p([fv(data.authorEmail)]),
+    ];
+
+    const doc = new docx.Document({ sections: [{ ...A4_SECTION, children }] });
+    return docx.Packer.toBlob(doc);
+}
+
+// ═══════════════════════════════════════════════════
+//  002 – ENGINEERING REPORT
+// ═══════════════════════════════════════════════════
+async function genEngReport(data) {
+    const children = [
+        new docx.Paragraph({
+            children: [new docx.TextRun({ text: 'ENGINEERING ACCEPTANCE', bold: true, size: 36, color: '1A3A5C' })],
+            alignment: docx.AlignmentType.CENTER,
+            spacing: { before: 720, after: 160 }
+        }),
+        new docx.Paragraph({
+            children: [new docx.TextRun({ text: 'ENGINEERING REPORT', bold: true, size: 28, color: '2D5A8E' })],
+            alignment: docx.AlignmentType.CENTER,
+            spacing: { after: 480 }
+        }),
+        new docx.Paragraph({
+            children: [new docx.TextRun({ text: '─'.repeat(60), color: 'C8A84B' })],
+            alignment: docx.AlignmentType.CENTER,
+            spacing: { after: 480 }
+        }),
+        labeled('Project Name',         fv(data.projName)),
+        labeled('Project Address',      fv(data.projAddress)),
+        labeled('Consent Number',       fv(data.consentNumber)),
+        labeled('Contract Number',      fv(data.contractNumber)),
+        labeled('Contract Name',        fv(data.contractName)),
+        labeled('Contract Description', fv(data.contractDesc)),
+        labeled('Principal',            fv(data.principalName)),
+        labeled('Application Date',     fv(data.applicationDate)),
+        labeled('Prepared By',          fv(data.authorName)),
+        labeled('Engineer',             fv(data.engineerName)),
+        ...blank(2),
+        new docx.Paragraph({
+            children: [new docx.TextRun({ text: 'CLARK FORTUNE McDONALD & ASSOCIATES LIMITED', bold: true, size: 22, color: '1A3A5C' })],
+            alignment: docx.AlignmentType.CENTER,
+            spacing: { after: 40 }
+        }),
+        new docx.Paragraph({
+            children: [new docx.TextRun({ text: '309 Lower Shotover Road, Queenstown  |  PO Box 553', size: 18, color: '64748B' })],
+            alignment: docx.AlignmentType.CENTER,
+            spacing: { after: 40 }
+        }),
+        new docx.Paragraph({ children: [new docx.TextRun({ text: 'Phone: 03 442 0990  |  Fax: 03 442 1066', size: 18, color: '64748B' })], alignment: docx.AlignmentType.CENTER }),
+
+        // Page break before TOC
+        new docx.Paragraph({ children: [new docx.PageBreak()] }),
+
+        heading1('Table of Contents'),
+        p([new docx.TextRun('1.  Introduction')]),
+        p([new docx.TextRun('2.  Design Standards')]),
+        p([new docx.TextRun('3.  Earthworks')]),
+        p([new docx.TextRun('4.  Roading')]),
+        p([new docx.TextRun('5.  Stormwater Drainage')]),
+        p([new docx.TextRun('6.  Wastewater Reticulation')]),
+        p([new docx.TextRun('7.  Water Reticulation')]),
+        p([new docx.TextRun('8.  Services (Electrical, Telecom, Gas)')]),
+        p([new docx.TextRun('9.  Appendices')]),
+        ...blank(),
+
+        new docx.Paragraph({ children: [new docx.PageBreak()] }),
+
+        heading1('1.  Introduction'),
+        p([
+            new docx.TextRun('This Engineering Report has been prepared by Clark Fortune McDonald & Associates Limited on behalf of '),
+            fv(data.applicantName),
+            new docx.TextRun(' in support of the Engineering Acceptance application for '),
+            fv(data.projName),
+            new docx.TextRun(' under Resource Consent '),
+            fv(data.consentNumber),
+            new docx.TextRun('.'),
+        ]),
+        ...blank(),
+        p([
+            new docx.TextRun('The works are described under Contract '),
+            fv(data.contractNumber),
+            new docx.TextRun(' – '),
+            fv(data.contractName),
+            new docx.TextRun(' and comprise: '),
+            fv(data.contractDesc),
+            new docx.TextRun('.'),
+        ]),
+        ...blank(),
+        labeled('Principal',            fv(data.principalName)),
+        labeled('Number of Lots',       fv(data.noOfLots)),
+        labeled('Site Location',        fv(data.siteLocation)),
+        labeled('Site Legal Description',fv(data.siteLegalDesc)),
+        labeled('Site CT Reference',    fv(data.siteTitleRef)),
+        labeled('Site Access Point',    fv(data.siteAccessPoint)),
+        ...blank(),
+
+        heading1('2.  Design Standards'),
+        p([new docx.TextRun('The engineering design has been undertaken in accordance with the following standards and guidelines:')]),
+        ...blank(),
+        p([new docx.TextRun('•  QLDC Engineering Code of Practice (CoP)')]),
+        p([new docx.TextRun('•  NZTA Geometric Design Guide')]),
+        p([new docx.TextRun('•  NZS 4404:2010 Land Development and Subdivision Infrastructure')]),
+        p([new docx.TextRun('•  QLDC District Plan requirements')]),
+        new docx.Paragraph({ children: [new docx.TextRun('•  Resource Consent Conditions – '), fv(data.consentNumber)], spacing: { after: 80 } }),
+        ...blank(),
+
+        heading1('3.  Earthworks'),
+        p([new docx.TextRun({ text: '[Earthworks design details to be completed by the engineer]', color: '888888', italics: true })]),
+        ...blank(),
+
+        heading1('4.  Roading'),
+        p([new docx.TextRun({ text: '[Roading design details to be completed by the engineer]', color: '888888', italics: true })]),
+        ...blank(),
+
+        heading1('5.  Stormwater Drainage'),
+        p([new docx.TextRun({ text: '[Stormwater design details to be completed by the engineer]', color: '888888', italics: true })]),
+        ...blank(),
+
+        heading1('6.  Wastewater Reticulation'),
+        p([new docx.TextRun({ text: '[Wastewater design details to be completed by the engineer]', color: '888888', italics: true })]),
+        ...blank(),
+
+        heading1('7.  Water Reticulation'),
+        p([new docx.TextRun({ text: '[Water reticulation details to be completed by the engineer]', color: '888888', italics: true })]),
+        ...blank(),
+
+        heading1('8.  Services'),
+        labeled('Electricity Provider',     fv(data.electricProv)),
+        labeled('Telecom Provider',         fv(data.telecomProv)),
+        labeled('Gas Provider',             fv(data.gasProv)),
+        labeled('Traffic Engineer',         fv(data.trafficEngineer)),
+        labeled('Environmental Consultants',fv(data.envConsultants)),
+        labeled('Geotechnical Consultants', fv(data.geotechConsult)),
+        ...blank(),
+
+        heading1('9.  Appendices'),
+        p([new docx.TextRun('A.  Design Drawings')]),
+        p([new docx.TextRun('B.  Stormwater Calculations')]),
+        p([new docx.TextRun('C.  Geotechnical Report')]),
+    ].filter(Boolean);
+
+    const doc = new docx.Document({ sections: [{ ...A4_SECTION, children }] });
+    return docx.Packer.toBlob(doc);
+}
+
+// ═══════════════════════════════════════════════════
+//  003 – DESIGN & EXECUTION REPRESENTATIVE
+// ═══════════════════════════════════════════════════
+async function genDesExecRep(data) {
+    const date = data.applicationDate || new Date().toLocaleDateString('en-NZ', { day:'2-digit', month:'long', year:'numeric' });
+    const children = [
+        ...cfmHeader(),
+        p([new docx.TextRun(date)]),
+        ...blank(),
+        p([new docx.TextRun('The Manager')]),
+        p([new docx.TextRun('Resource Management Engineering,')]),
+        p([new docx.TextRun('Subdivision and Development Contributions,')]),
+        p([new docx.TextRun('Queenstown Lakes District Council')]),
+        p([new docx.TextRun('Private Bag 50077')]),
+        p([new docx.TextRun('QUEENSTOWN')]),
+        ...blank(),
+        p([new docx.TextRun({ text: 'Attention: Mr David Wallace', italic: true })]),
+        ...blank(),
+        new docx.Paragraph({
+            children: [
+                new docx.TextRun({ text: 'RE: DESIGN AND EXECUTION REPRESENTATIVE – ', bold: true }),
+                fv(data.contractName),
+                new docx.TextRun({ text: ' – Consent ', bold: true }),
+                fv(data.consentNumber),
+            ],
+            spacing: { after: 200 }
+        }),
+        p([new docx.TextRun('Dear Sir/Madam,')]),
+        ...blank(),
+        p([
+            new docx.TextRun('We act as consulting engineers to '),
+            fv(data.applicantName),
+            new docx.TextRun(' (the "Applicant") in respect of Resource Consent '),
+            fv(data.consentNumber),
+            new docx.TextRun('.'),
+        ]),
+        ...blank(),
+        p([
+            new docx.TextRun('On behalf of '),
+            fv(data.applicantName),
+            new docx.TextRun(', and in accordance with the above-named Resource Consent, we advise that the Owner\'s Representative for the Design and Execution of engineering works for '),
+            fv(data.projName),
+            new docx.TextRun(' is:'),
+        ]),
+        ...blank(),
+        new docx.Paragraph({
+            children: [new docx.TextRun({ text: 'Clark Fortune McDonald & Associates Limited', bold: true, size: 24 })],
+            alignment: docx.AlignmentType.CENTER,
+            spacing: { before: 160, after: 80 }
+        }),
+        new docx.Paragraph({
+            children: [new docx.TextRun({ text: '309 Lower Shotover Road, Queenstown', size: 20 })],
+            alignment: docx.AlignmentType.CENTER,
+            spacing: { after: 240 }
+        }),
+        ...blank(),
+        labeled('Project',              fv(data.projName)),
+        labeled('Contract Name',        fv(data.contractName)),
+        labeled('Contract Number',      fv(data.contractNumber)),
+        labeled('Consent Number',       fv(data.consentNumber)),
+        labeled('Application Date',     fv(data.applicationDate)),
+        labeled('EA Consent Conditions',fv(data.eaConsentConds)),
+        ...blank(),
+        p([new docx.TextRun('Please do not hesitate to contact us should you require any further information.')]),
+        ...blank(),
+        p([new docx.TextRun('Yours faithfully,')]),
+        ...blank(3),
+        p([new docx.TextRun({ text: 'CLARK FORTUNE McDONALD & ASSOCIATES LIMITED', bold: true })]),
+        p([fv(data.authorName)]),
+        p([fv(data.engineerQuals, 'xxxxxx (qualifications)')]),
+        p([fv(data.authorEmail)]),
+    ];
+
+    const doc = new docx.Document({ sections: [{ ...A4_SECTION, children }] });
+    return docx.Packer.toBlob(doc);
+}
+
+// ═══════════════════════════════════════════════════
+//  004 – SCHEDULE 1A DESIGN CERTIFICATE
+// ═══════════════════════════════════════════════════
+async function genSchedule1A(data) {
+    const children = [
+        new docx.Paragraph({
+            children: [new docx.TextRun({ text: 'SCHEDULE 1A', bold: true, size: 36, color: '1A3A5C', allCaps: true })],
+            alignment: docx.AlignmentType.CENTER,
+            spacing: { before: 480, after: 80 }
+        }),
+        new docx.Paragraph({
+            children: [new docx.TextRun({ text: 'Design Certificate – Land Development / Subdivision Work', bold: true, size: 24, color: '2D5A8E' })],
+            alignment: docx.AlignmentType.CENTER,
+            spacing: { after: 480 }
+        }),
+        new docx.Paragraph({
+            children: [new docx.TextRun({ text: '─'.repeat(60), color: 'C8A84B' })],
+            alignment: docx.AlignmentType.CENTER,
+            spacing: { after: 480 }
+        }),
+
+        heading2('Issued By'),
+        p([new docx.TextRun({ text: 'Clark Fortune McDonald & Associates Limited', bold: true })]),
+        p([new docx.TextRun('(Approved Certifier Firm)')]),
+        p([new docx.TextRun('309 Lower Shotover Road, Queenstown')]),
+        ...blank(),
+
+        heading2('To'),
+        p([fv(data.applicantName)]),
+        ...blank(),
+
+        heading2('To Be Supplied To'),
+        p([new docx.TextRun({ text: 'Queenstown Lakes District Council (Territorial Authority)', bold: true })]),
+        ...blank(),
+
+        heading2('In Respect Of'),
+        labeled('Contract Name',        fv(data.contractName)),
+        labeled('Contract Description', fv(data.contractDesc)),
+        labeled('Project Address',      fv(data.projAddress)),
+        labeled('Consent Number',       fv(data.consentNumber)),
+        labeled('Application Date',     fv(data.applicationDate)),
+        labeled('Principal',            fv(data.principalName)),
+        ...blank(),
+
+        heading2('Engagement'),
+        p([
+            new docx.TextRun('Clark Fortune McDonald & Associates has been engaged by '),
+            fv(data.applicantName),
+            new docx.TextRun(' to provide Design and Supervision services in respect of the land development and/or subdivision work described above.'),
+        ]),
+        ...blank(),
+
+        heading2('Certifier Details'),
+        labeled('Name',              fv(data.authorName)),
+        labeled('Qualifications',    fv(data.engineerQuals)),
+        labeled('Date of Certification', fv(data.applicationDate)),
+        labeled('Address',           new docx.TextRun('309 Lower Shotover Road, Queenstown')),
+        ...blank(),
+
+        heading2('Member Organisation'),
+        p([new docx.TextRun({ text: 'Survey + Spatial New Zealand (S+SNZ) / Engineering New Zealand', bold: false })]),
+        ...blank(),
+
+        heading2('Practice Field'),
+        p([new docx.TextRun('☑  Civil')]),
+        p([new docx.TextRun('☐  Mechanical')]),
+        p([new docx.TextRun('☐  Structural')]),
+        p([new docx.TextRun('☐  Electrical')]),
+        p([new docx.TextRun('☐  Geotechnical')]),
+        p([new docx.TextRun('☐  Environmental')]),
+        ...blank(2),
+
+        new docx.Paragraph({ children: [new docx.TextRun({ text: '─'.repeat(40), color: 'CCCCCC' })], spacing: { after: 80 } }),
+        p([new docx.TextRun({ text: 'Signature: ', bold: true }), new docx.TextRun('                                                      ')]),
+        ...blank(),
+        p([new docx.TextRun({ text: 'Date: ', bold: true }), fv(data.applicationDate)]),
+        ...blank(),
+        new docx.Paragraph({
+            children: [
+                new docx.TextRun({ text: 'Contract: ', bold: true }), fv(data.contractName),
+                new docx.TextRun({ text: '     Consent: ', bold: true }), fv(data.consentNumber),
+            ],
+            spacing: { after: 80 }
+        }),
+    ];
+
+    const doc = new docx.Document({ sections: [{ ...A4_SECTION, children }] });
+    return docx.Packer.toBlob(doc);
+}
+
+// ═══════════════════════════════════════════════════
+//  GENERIC COVER PAGE (used for docs 005-011 & SPEC)
+// ═══════════════════════════════════════════════════
+async function genCoverPage(data, docCode, docTitle) {
+    const children = [
+        new docx.Paragraph({
+            children: [new docx.TextRun({ text: 'ENGINEERING ACCEPTANCE', bold: true, size: 28, color: '1A3A5C' })],
+            alignment: docx.AlignmentType.CENTER,
+            spacing: { before: 720, after: 160 }
+        }),
+        new docx.Paragraph({
+            children: [new docx.TextRun({ text: docCode, bold: true, size: 22, color: 'C8A84B' })],
+            alignment: docx.AlignmentType.CENTER,
+            spacing: { after: 80 }
+        }),
+        new docx.Paragraph({
+            children: [new docx.TextRun({ text: docTitle, bold: true, size: 32, color: '1A3A5C' })],
+            alignment: docx.AlignmentType.CENTER,
+            spacing: { after: 480 }
+        }),
+        new docx.Paragraph({
+            children: [new docx.TextRun({ text: '─'.repeat(60), color: 'C8A84B' })],
+            alignment: docx.AlignmentType.CENTER,
+            spacing: { after: 480 }
+        }),
+        labeled('Project Name',         fv(data.projName)),
+        labeled('Project Address',      fv(data.projAddress)),
+        labeled('Applicant',            fv(data.applicantName)),
+        labeled('Consent Number',       fv(data.consentNumber)),
+        labeled('Contract Name',        fv(data.contractName)),
+        labeled('Contract Number',      fv(data.contractNumber)),
+        labeled('Contract Description', fv(data.contractDesc)),
+        labeled('Site Location',        fv(data.siteLocation)),
+        labeled('Principal',            fv(data.principalName)),
+        labeled('Application Date',     fv(data.applicationDate)),
+        labeled('Prepared By',          fv(data.authorName)),
+        labeled('Engineer',             fv(data.engineerName)),
+        labeled('Engineer Email',       fv(data.engineerEmail)),
+        labeled('EA Consent Conditions',fv(data.eaConsentConds)),
+        ...blank(2),
+        new docx.Paragraph({
+            children: [new docx.TextRun({ text: 'CLARK FORTUNE McDONALD & ASSOCIATES LIMITED', bold: true, size: 22, color: '1A3A5C' })],
+            alignment: docx.AlignmentType.CENTER,
+            spacing: { after: 40 }
+        }),
+        new docx.Paragraph({
+            children: [new docx.TextRun({ text: '309 Lower Shotover Road, Queenstown  |  PO Box 553  |  Phone: 03 442 0990', size: 18, color: '64748B' })],
+            alignment: docx.AlignmentType.CENTER,
+        }),
+    ];
+
+    const doc = new docx.Document({ sections: [{ ...A4_SECTION, children }] });
+    return docx.Packer.toBlob(doc);
+}
+
+// ═══════════════════════════════════════════════════
+//  RFT – REQUEST FOR TENDER
+// ═══════════════════════════════════════════════════
+async function genRFT(data) {
+    const children = [
+        // Cover
+        new docx.Paragraph({
+            children: [new docx.TextRun({ text: 'REQUEST FOR TENDER', bold: true, size: 40, color: '1A3A5C', allCaps: true })],
+            alignment: docx.AlignmentType.CENTER,
+            spacing: { before: 720, after: 160 }
+        }),
+        new docx.Paragraph({
+            children: [fv(data.contractName)],
+            alignment: docx.AlignmentType.CENTER,
+            spacing: { after: 80 }
+        }),
+        new docx.Paragraph({
+            children: [new docx.TextRun({ text: 'Contract No: ' }), fv(data.contractNumber)],
+            alignment: docx.AlignmentType.CENTER,
+            spacing: { after: 480 }
+        }),
+        new docx.Paragraph({
+            children: [new docx.TextRun({ text: '─'.repeat(60), color: 'C8A84B' })],
+            alignment: docx.AlignmentType.CENTER,
+            spacing: { after: 480 }
+        }),
+        labeled('Project Name',         fv(data.projName)),
+        labeled('Project Address',      fv(data.projAddress)),
+        labeled('Consent Number',       fv(data.consentNumber)),
+        labeled('Contract Description', fv(data.contractDesc)),
+        labeled('Principal',            fv(data.principalName)),
+        labeled('Application Date',     fv(data.applicationDate)),
+        ...blank(2),
+        new docx.Paragraph({
+            children: [new docx.TextRun({ text: 'CLARK FORTUNE McDONALD & ASSOCIATES LIMITED', bold: true, size: 22, color: '1A3A5C' })],
+            alignment: docx.AlignmentType.CENTER,
+            spacing: { after: 40 }
+        }),
+        new docx.Paragraph({
+            children: [new docx.TextRun({ text: '309 Lower Shotover Road, Queenstown', size: 18, color: '64748B' })],
+            alignment: docx.AlignmentType.CENTER,
+        }),
+
+        // Page break
+        new docx.Paragraph({ children: [new docx.PageBreak()] }),
+
+        heading1('1.  Project Information'),
+        labeled('Project Name',         fv(data.projName)),
+        labeled('Project Address',      fv(data.projAddress)),
+        labeled('Site Location',        fv(data.siteLocation)),
+        labeled('Site Legal Description',fv(data.siteLegalDesc)),
+        labeled('Site CT Reference',    fv(data.siteTitleRef)),
+        labeled('Site Access Point',    fv(data.siteAccessPoint)),
+        labeled('Applicant',            fv(data.applicantName)),
+        labeled('Number of Lots',       fv(data.noOfLots)),
+        ...blank(),
+
+        heading1('2.  Contract Details'),
+        labeled('Contract Number',      fv(data.contractNumber)),
+        labeled('Contract Name',        fv(data.contractName)),
+        labeled('Contract Description', fv(data.contractDesc)),
+        labeled('Type of Contract',     fv(data.contractType)),
+        labeled('Consent Number',       fv(data.consentNumber)),
+        labeled('EA Consent Conditions',fv(data.eaConsentConds)),
+        labeled('CEMP Conditions',      fv(data.cempConsentConds)),
+        ...blank(),
+
+        heading1('3.  Principal'),
+        labeled('Principal Name',       fv(data.principalName)),
+        labeled('Principal Contact',    fv(data.principalContact)),
+        labeled('Address 1',            fv(data.principalAddr1)),
+        labeled('Address 2',            fv(data.principalAddr2)),
+        ...blank(),
+
+        heading1('4.  Engineer'),
+        labeled('Engineer Name',        fv(data.engineerName)),
+        labeled('Engineer Email',       fv(data.engineerEmail)),
+        labeled('Engineer Mobile',      fv(data.engineerMobile)),
+        labeled('Qualifications',       fv(data.engineerQuals)),
+        labeled('Author Name',          fv(data.authorName)),
+        labeled('Author Email',         fv(data.authorEmail)),
+        labeled('Traffic Engineer',     fv(data.trafficEngineer)),
+        labeled('Environmental Consultants', fv(data.envConsultants)),
+        labeled('Geotechnical Consultants',  fv(data.geotechConsult)),
+        ...blank(),
+
+        heading1('5.  Tender Information'),
+        labeled('Arrange to View Site', fv(data.arrangeToView)),
+        labeled('Tenders Close',        fv(data.tendersClose)),
+        labeled('Due Date for Completion', fv(data.completionDate)),
+        labeled('Possession Date',      fv(data.possessionDate)),
+        ...blank(),
+
+        heading1('6.  Financial & Contract Conditions'),
+        labeled('Liquidated Damages',   fv(data.liqDamages)),
+        labeled('Contingency',          fv(data.contingency)),
+        labeled('Separable Portions',   fv(data.separablePortions)),
+        ...blank(),
+        heading2('6.1  Contractors Bond'),
+        p([
+            new docx.TextRun('A Contractors Bond '),
+            fv(data.contractorsBond),
+            new docx.TextRun('. '),
+            fv(data.contractorsBondAmt),
+            new docx.TextRun('.'),
+        ]),
+        ...blank(),
+        heading2('6.2  Principals Bond'),
+        p([
+            new docx.TextRun('A Principals Bond '),
+            fv(data.principalsBond),
+            new docx.TextRun('. '),
+            fv(data.principalsBondAmt),
+            new docx.TextRun('.'),
+        ]),
+        ...blank(),
+        heading2('6.3  Provisional & Prime Cost Sums'),
+        labeled('Provisional Sums',     fv(data.provSums)),
+        labeled('Provisional Items',    fv(data.provItems)),
+        labeled('Prime Cost Sums',      fv(data.primeCostSums)),
+        ...blank(),
+
+        heading1('7.  Services'),
+        labeled('Electricity Provider', fv(data.electricProv)),
+        labeled('Telecommunications',   fv(data.telecomProv)),
+        labeled('Gas Provider',         fv(data.gasProv)),
+        ...blank(),
+
+        heading1('8.  Environmental'),
+        labeled('EMP Plan',             fv(data.empPlan)),
+        labeled('CEMP Conditions',      fv(data.cempConsentConds)),
+    ];
+
+    const doc = new docx.Document({ sections: [{ ...A4_SECTION, children }] });
+    return docx.Packer.toBlob(doc);
+}
+
+// ═══════════════════════════════════════════════════
+//  DISPATCH
+// ═══════════════════════════════════════════════════
+async function generateDoc(docId, data) {
+    switch (docId) {
+        case 'doc001':  return genCoverLetter(data);
+        case 'doc002':  return genEngReport(data);
+        case 'doc003':  return genDesExecRep(data);
+        case 'doc004':  return genSchedule1A(data);
+        case 'doc005':  return genCoverPage(data, 'ENG-ACC-005', 'Stormwater Calculations');
+        case 'doc006':  return genCoverPage(data, 'ENG-ACC-006', 'Intersection Sight Distance Report');
+        case 'doc007':  return genCoverPage(data, 'ENG-ACC-007', 'CFMA Design Plans');
+        case 'doc009':  return genCoverPage(data, 'ENG-ACC-009', 'Road Safety Audit');
+        case 'doc010':  return genCoverPage(data, 'ENG-ACC-010', 'Target Operating Speed Assessment');
+        case 'doc011':  return genCoverPage(data, 'ENG-ACC-011', 'Environmental Management Plan');
+        case 'docSPEC': return genCoverPage(data, 'SPEC',        'Civils Specification');
+        case 'docRFT':  return genRFT(data);
+        default: throw new Error('Unknown doc: ' + docId);
+    }
+}
+
+// ═══════════════════════════════════════════════════
+//  EXPORT
+// ═══════════════════════════════════════════════════
+
+// Write a blob directly to disk via File System Access API (no Mark of the Web)
+async function writeBlobDirect(blob, suggestedName, mimeType) {
+    const handle = await window.showSaveFilePicker({
+        suggestedName,
+        types: [{ description: 'Word Document', accept: { [mimeType]: ['.docx'] } }]
+    });
+    const writable = await handle.createWritable();
+    await writable.write(blob);
+    await writable.close();
+}
+
+// Write multiple blobs directly into a user-chosen folder
+async function writeBlobsToFolder(files) {
+    const dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+    for (const { blob, name } of files) {
+        const fileHandle = await dirHandle.getFileHandle(name, { create: true });
+        const writable = await fileHandle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+    }
+}
+
+const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+async function exportDocuments() {
+    const selected = DOCS.filter(d => document.getElementById(d.id).checked);
+    if (selected.length === 0) {
+        showToast('Please select at least one document.', 'error'); return;
+    }
+
+    const overlay = document.getElementById('overlay');
+    const spinMsg = document.getElementById('spinner-msg');
+    const btn     = document.getElementById('btn-export-top');
+    overlay.classList.add('show');
+    btn.disabled = true;
+
+    try {
+        const data = getFormData();
+
+        if (selected.length === 1) {
+            // ── Single file ──────────────────────────────────
+            spinMsg.textContent = 'Generating ' + selected[0].name + '…';
+            const blob = await generateDoc(selected[0].id, data);
+
+            if (window.showSaveFilePicker) {
+                // Direct write — no Mark of the Web
+                await writeBlobDirect(blob, selected[0].fn, DOCX_MIME);
+            } else {
+                saveAs(blob, selected[0].fn);  // fallback
+            }
+
+        } else if (window.showDirectoryPicker) {
+            // ── Multiple files → write directly into chosen folder ──
+            const files = [];
+            for (let i = 0; i < selected.length; i++) {
+                const d = selected[i];
+                spinMsg.textContent = `Generating ${i+1}/${selected.length}: ${d.name}`;
+                const blob = await generateDoc(d.id, data);
+                files.push({ blob, name: d.fn });
+            }
+            spinMsg.textContent = 'Choose a folder to save into…';
+            await writeBlobsToFolder(files);
+
+        } else {
+            // ── Fallback: ZIP download ───────────────────────
+            const zip = new JSZip();
+            for (let i = 0; i < selected.length; i++) {
+                const d = selected[i];
+                spinMsg.textContent = `Generating ${i+1}/${selected.length}: ${d.name}`;
+                const blob = await generateDoc(d.id, data);
+                zip.file(d.fn, blob);
+            }
+            spinMsg.textContent = 'Creating ZIP archive…';
+            const cn = data.consentNumber || 'Draft';
+            const pn = data.projName ? data.projName.replace(/[^a-zA-Z0-9_\-]/g, '_') : 'EA_Package';
+            const zipBlob = await zip.generateAsync({ type: 'blob' });
+            saveAs(zipBlob, `${pn}_${cn}_EA_Package.zip`);
+        }
+
+        showToast(`✓ ${selected.length} document${selected.length > 1 ? 's' : ''} saved successfully`, 'success');
+    } catch (err) {
+        if (err.name === 'AbortError') {
+            showToast('Save cancelled.', '');
+        } else {
+            console.error(err);
+            showToast('Error: ' + err.message, 'error');
+        }
+    } finally {
+        overlay.classList.remove('show');
+        btn.disabled = false;
+    }
+}
+
+// ═══════════════════════════════════════════════════
+//  TOAST
+// ═══════════════════════════════════════════════════
+let toastTimer;
+function showToast(msg, type) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'show' + (type ? ' ' + type : '');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { t.className = ''; }, 3500);
+}
+
+// ═══════════════════════════════════════════════════
+//  FIELD IDS (all form inputs)
+// ═══════════════════════════════════════════════════
+const ALL_FIELD_IDS = [
+    'f001','f002','f003','f004','f005','f006','f007','f008','f009','f010',
+    'f011','f012','f013','f014','f014a','f015','f016','f017','f018','f019',
+    'f020','f021','f022','f023','f023a','f024','f025','f026','f027','f028',
+    'f028a','f029','f030','f031','f031a','f031b','f032','f033','f034','f035',
+    'f036','f037','f038','f039','f040','f041','f042','f043','f044'
+];
+
+const STORAGE_KEY = 'cfm_ea_builder_data';
+
+// ── SAVE ──────────────────────────────────────────
+function saveToStorage() {
+    const payload = {};
+    ALL_FIELD_IDS.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) payload[id] = el.value;
+    });
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    const now = new Date().toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit' });
+    document.getElementById('saved-badge').textContent = 'Saved ' + now;
+    showToast('Project data saved to browser', 'success');
+}
+
+// ── LOAD ──────────────────────────────────────────
+function loadFromStorage() {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) { showToast('No saved data found.', 'error'); return; }
+    try {
+        const payload = JSON.parse(raw);
+        let count = 0;
+        ALL_FIELD_IDS.forEach(id => {
+            const el = document.getElementById(id);
+            if (el && payload[id] !== undefined) { el.value = payload[id]; count++; }
+        });
+        showToast(`Loaded ${count} fields from saved data`, 'success');
+        updateSavedBadge();
+    } catch (e) {
+        showToast('Failed to load saved data.', 'error');
+    }
+}
+
+// ── CLEAR ─────────────────────────────────────────
+function clearForm() {
+    if (!confirm('Clear all form fields? This cannot be undone (use Save first to keep your data).')) return;
+    ALL_FIELD_IDS.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    document.getElementById('saved-badge').textContent = '';
+    showToast('Form cleared');
+}
+
+// ── AUTO-SAVE on input ─────────────────────────────
+let autoSaveTimer;
+document.addEventListener('input', e => {
+    if (e.target.matches('input, textarea, select')) {
+        clearTimeout(autoSaveTimer);
+        autoSaveTimer = setTimeout(() => {
+            const payload = {};
+            ALL_FIELD_IDS.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) payload[id] = el.value;
+            });
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+            updateSavedBadge();
+        }, 1500);
+    }
+});
+
+function updateSavedBadge() {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+        document.getElementById('saved-badge').textContent = 'Auto-saved';
+    }
+}
+
+// ═══════════════════════════════════════════════════
+//  IMPORT FROM CONSENT ANALYSER
+// ═══════════════════════════════════════════════════
+
+// Holds parsed data ready to apply
+let pendingImport = null;
+
+// Field mapping: EA form field id → function to extract from JSON
+const IMPORT_FIELD_MAP = [
+    {
+        id: 'f005',
+        label: 'Consent Number',
+        extract: d => d.rmReference
+                   || d.consentDetails?.rmReference
+                   || d.data?.consentDetails?.rmReference
+    },
+    {
+        id: 'f003',
+        label: 'Applicant Name',
+        extract: d => d.consentDetails?.applicant
+                   || d.data?.consentDetails?.applicant
+    },
+    {
+        id: 'f002',
+        label: 'Project Address',
+        extract: d => d.consentDetails?.location
+                   || d.data?.consentDetails?.location
+    },
+    {
+        id: 'f010',
+        label: 'Site Location',
+        extract: d => d.consentDetails?.location
+                   || d.data?.consentDetails?.location
+    },
+    {
+        id: 'f011',
+        label: 'Site Legal Description',
+        extract: d => d.consentDetails?.legalDescription
+                   || d.data?.consentDetails?.legalDescription
+    },
+    {
+        id: 'f001',
+        label: 'Project Name',
+        extract: d => {
+            // Build a sensible project name from location or applicant if not explicit
+            const loc  = d.consentDetails?.location || d.data?.consentDetails?.location;
+            const appl = d.consentDetails?.applicant || d.data?.consentDetails?.applicant;
+            return loc || appl || null;
+        }
+    },
+    {
+        id: 'f025',
+        label: 'EA Consent Conditions',
+        textarea: true,
+        extract: d => {
+            // Match "Engineering Acceptance", "Engineering Approval",
+            // and "Engineering Review and Acceptance" (or any variant with words between)
+            const EA_RE = /engineering[^.\n]{0,40}(?:accept|approv)/i;
+
+            // Collect all conditions — handle both path variants:
+            //   data.conditions.subdivisionConditions  (current analyser format)
+            //   data.subdivisionConditions             (older flat format)
+            const subConds = d.data?.conditions?.subdivisionConditions
+                          || d.data?.subdivisionConditions
+                          || d.subdivisionConditions
+                          || {};
+            const luConds  = d.data?.conditions?.landUseConditions
+                          || d.data?.landUseConditions
+                          || d.landUseConditions
+                          || {};
+
+            const all = [];
+            ['general','priorToWorks','priorTo223','priorTo224c','ongoing'].forEach(stage => {
+                (subConds[stage] || []).forEach(c => all.push(c));
+            });
+            ['general','duringConstruction','ongoing'].forEach(stage => {
+                (luConds[stage] || []).forEach(c => all.push(c));
+            });
+
+            const matches = all.filter(c => EA_RE.test(c.text));
+            if (matches.length === 0) return null;
+
+            return matches.map(c => `Condition ${c.number}:\n${c.text}`).join('\n\n');
+        }
+    },
+];
+
+function parseImportData(json) {
+    const rows = [];
+    IMPORT_FIELD_MAP.forEach(def => {
+        let val = null;
+        try { val = def.extract(json); } catch(e) {}
+        rows.push({ id: def.id, label: def.label, value: val || '' });
+    });
+    return rows;
+}
+
+function renderImportPreview(rows) {
+    const container = document.getElementById('import-preview-rows');
+    container.innerHTML = rows.map((r, i) => {
+        if (!r.value) {
+            return `<div class="imp-row">
+                <span class="imp-label">${r.label}</span>
+                <span class="imp-val empty">(not found in file)</span>
+            </div>`;
+        }
+        // For long / multi-line values (conditions), show truncated with expand toggle
+        const isLong = r.value.length > 120 || r.value.includes('\n');
+        const preview = r.value.length > 120 ? r.value.slice(0, 120) + '…' : r.value.split('\n')[0] + (r.value.includes('\n') ? '…' : '');
+        if (isLong) {
+            return `<div class="imp-row imp-row-block">
+                <span class="imp-label">${r.label}</span>
+                <div class="imp-val-wrap">
+                    <span class="imp-val" id="imp-val-${i}">${escHtml(preview)}</span>
+                    <button class="imp-expand" onclick="toggleCondPreview(${i})" data-full="${escAttr(r.value)}" data-preview="${escAttr(preview)}" data-expanded="0">▼ Show full text</button>
+                </div>
+            </div>`;
+        }
+        return `<div class="imp-row">
+            <span class="imp-label">${r.label}</span>
+            <span class="imp-val">${escHtml(r.value)}</span>
+        </div>`;
+    }).join('');
+
+    const found = rows.filter(r => r.value).length;
+    const warnEl = document.getElementById('import-warn');
+    if (found === 0) {
+        warnEl.textContent = '⚠ No recognisable fields found. Make sure this is a Resource Consent Analyser export file.';
+    } else {
+        warnEl.textContent = `${found} of ${rows.length} fields matched.`;
+        warnEl.style.color = found < 3 ? '#b45309' : '#166534';
+    }
+
+    document.getElementById('import-preview').style.display = 'block';
+}
+
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>'); }
+function escAttr(s) { return s.replace(/"/g,'&quot;'); }
+
+function toggleCondPreview(i) {
+    const btn = document.querySelector(`[onclick="toggleCondPreview(${i})"]`);
+    const valEl = document.getElementById(`imp-val-${i}`);
+    const expanded = btn.dataset.expanded === '1';
+    if (expanded) {
+        valEl.innerHTML = escHtml(btn.dataset.preview);
+        btn.textContent = '▼ Show full text';
+        btn.dataset.expanded = '0';
+    } else {
+        valEl.innerHTML = escHtml(btn.dataset.full);
+        btn.textContent = '▲ Hide';
+        btn.dataset.expanded = '1';
+    }
+}
+
+function processImportFile(file) {
+    if (!file || !file.name.endsWith('.json')) {
+        showToast('Please select a .json file', 'error'); return;
+    }
+    const reader = new FileReader();
+    reader.onload = e => {
+        try {
+            const json = JSON.parse(e.target.result);
+            pendingImport = parseImportData(json);
+            renderImportPreview(pendingImport);
+        } catch(err) {
+            showToast('Could not parse JSON file: ' + err.message, 'error');
+        }
+    };
+    reader.readAsText(file);
+}
+
+function applyImport() {
+    if (!pendingImport) return;
+    const overwrite = document.getElementById('overwrite-existing').checked;
+    let applied = 0;
+    pendingImport.forEach(row => {
+        if (!row.value) return;
+        const el = document.getElementById(row.id);
+        if (!el) return;
+        if (!overwrite && el.value.trim()) return; // skip filled fields
+        el.value = row.value;
+        applied++;
+    });
+    closeImportModal();
+    showToast(`✓ ${applied} field${applied !== 1 ? 's' : ''} imported from Consent Analyser`, 'success');
+    saveToStorage(); // auto-save after import
+}
+
+function openImportModal() {
+    pendingImport = null;
+    document.getElementById('import-preview').style.display = 'none';
+    document.getElementById('import-file').value = '';
+    document.getElementById('import-modal').classList.add('show');
+}
+
+function closeImportModal() {
+    document.getElementById('import-modal').classList.remove('show');
+}
+
+function handleFileSelect(e) {
+    processImportFile(e.target.files[0]);
+}
+
+function handleDragOver(e) {
+    e.preventDefault();
+    document.getElementById('import-drop').classList.add('drag-over');
+}
+
+function handleDragLeave(e) {
+    document.getElementById('import-drop').classList.remove('drag-over');
+}
+
+function handleDrop(e) {
+    e.preventDefault();
+    document.getElementById('import-drop').classList.remove('drag-over');
+    processImportFile(e.dataTransfer.files[0]);
+}
+
+// Close modal on backdrop click
+document.getElementById('import-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeImportModal();
+});
+
+// ── DEFAULT: TODAY'S DATE IN NZST ─────────────────
+function nzToday() {
+    return new Date().toLocaleDateString('en-NZ', {
+        timeZone: 'Pacific/Auckland',
+        day: 'numeric', month: 'long', year: 'numeric'
+    });
+}
+
+// ── RESTORE ON LOAD ────────────────────────────────
+(function restoreOnLoad() {
+    // Set application date default first (will be overwritten by saved data if present)
+    const dateEl = document.getElementById('f008');
+    if (dateEl && !dateEl.value) dateEl.value = nzToday();
+
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    try {
+        const payload = JSON.parse(raw);
+        let hasData = false;
+        ALL_FIELD_IDS.forEach(id => {
+            const el = document.getElementById(id);
+            if (el && payload[id]) { el.value = payload[id]; hasData = true; }
+        });
+        if (hasData) updateSavedBadge();
+    } catch (e) { /* ignore */ }
+})();
+</script>
+</body>
+</html>
